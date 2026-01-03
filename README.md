@@ -84,6 +84,23 @@ Three BigQuery tables are generated:
 2. **Route Insights**: Aggregated metrics per flight route
 3. **Booking Origin Insights**: Success rates and lead times by booking source
 
+
+The GitHub CI/CD Actions
+==================
+
+<img width="3456" height="2000" alt="image" src="https://github.com/user-attachments/assets/0da258eb-2d5c-4851-93a6-0018b9b2e4f0" />
+
+The DAG
+
+<img width="1721" height="1031" alt="image" src="https://github.com/user-attachments/assets/c8be3cf7-960a-4a20-b0d9-1a15039b8c51" />
+
+The tables are created in BigQuery as output of Dag 
+
+<img width="2954" height="1838" alt="image" src="https://github.com/user-attachments/assets/99bffa68-4627-4eb8-88b0-c46b8e44dc9a" />
+
+
+
+
 ## 📦 Prerequisites
 
 ### Required Services
