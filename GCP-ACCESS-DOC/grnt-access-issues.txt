@@ -1,0 +1,553 @@
+# Google Cloud Organization Policy Management Guide
+
+## Overview
+
+This guide documents the process of managing Google Cloud Organization Policies, specifically for disabling the service account key creation restriction that is automatically enforced on new organizations created after May 3, 2024.
+
+---
+
+## Problem Statement
+
+**Error Encountered:**
+```
+Enforced Organization Policies IDs:
+* iam.disableServiceAccountKeyCreation
+
+Your Organization Policy Administrator enforced the Organization Policy to prevent 
+security incidents related to Service Account keys.
+```
+
+**Root Cause:**
+Google Cloud automatically enforces security baseline constraints on all new organizations. The `iam.disableServiceAccountKeyCreation` constraint blocks the creation of service account keys as a security measure.
+
+---
+
+## Prerequisites
+
+### Required Roles
+- **Organization Policy Administrator** (`roles/orgpolicy.policyAdmin`)
+- Or **Organization Administrator** (`roles/resourcemanager.organizationAdmin`)
+
+### Required Permissions
+- `orgpolicy.policy.get`
+- `orgpolicy.policies.create`
+- `orgpolicy.policies.delete`
+- `orgpolicy.policies.update`
+
+---
+
+## Step-by-Step Solution
+
+### Step 1: Verify Your Authentication
+
+Check which Google account you're currently authenticated with:
+
+```bash
+gcloud auth list
+```
+
+**Purpose:** Ensures you're using the correct account with necessary permissions.
+
+**Expected Output:**
+```
+        Credentialed Accounts
+ACTIVE  ACCOUNT
+*       your-email@domain.com
+```
+
+---
+
+### Step 2: Find Your Organization ID
+
+```bash
+gcloud organizations list
+```
+
+**Purpose:** Retrieves your organization ID, which is required for all organization-level operations.
+
+**Expected Output:**
+```
+DISPLAY_NAME          ID              DIRECTORY_CUSTOMER_ID
+yourdomain.com        1045925503470   C01234567
+```
+
+**Alternative Method:** If you know your project ID, you can get the organization ID from project details:
+
+```bash
+gcloud projects describe PROJECT_ID
+```
+
+**Example:**
+```bash
+gcloud projects describe project-040088dd-8c9a-464e-96f
+```
+
+**Output:**
+```
+createTime: '2026-01-03T06:37:16.557777Z'
+lifecycleState: ACTIVE
+name: My First Project
+parent:
+  id: '1045925503470'        # This is your Organization ID
+  type: organization
+projectId: project-040088dd-8c9a-464e-96f
+projectNumber: '68634013284'
+```
+
+---
+
+### Step 3: Grant Organization Policy Administrator Role
+
+**Command:**
+```bash
+gcloud organizations add-iam-policy-binding ORGANIZATION_ID \
+    --member="user:YOUR_EMAIL@domain.com" \
+    --role="roles/orgpolicy.policyAdmin"
+```
+
+**Example:**
+```bash
+gcloud organizations add-iam-policy-binding 1045925503470 \
+    --member="user:mtousif03012026@gmail.com" \
+    --role="roles/orgpolicy.policyAdmin"
+```
+
+**Purpose:** Grants you the necessary permissions to view, create, update, and delete organization policies.
+
+**Expected Output:**
+```
+Updated IAM policy for organization [1045925503470].
+bindings:
+- members:
+  - user:mtousif03012026@gmail.com
+  role: roles/orgpolicy.policyAdmin
+...
+etag: BwZHeT88wAI=
+version: 1
+```
+
+---
+
+### Step 4: Enable Organization Policy API
+
+```bash
+gcloud services enable orgpolicy.googleapis.com --project=PROJECT_ID
+```
+
+**Example:**
+```bash
+gcloud services enable orgpolicy.googleapis.com --project=project-040088dd-8c9a-464e-96f
+```
+
+**Purpose:** Enables the Organization Policy API, which is required to manage organization policies programmatically.
+
+**Expected Output:**
+```
+Operation "operations/acat.p2-68634013284-..." finished successfully.
+```
+
+**Note:** After enabling, wait 1-2 minutes for the API to fully propagate across Google's systems.
+
+---
+
+### Step 5: List Current Organization Policies
+
+```bash
+gcloud org-policies list --organization=ORGANIZATION_ID
+```
+
+**Example:**
+```bash
+gcloud org-policies list --organization=1045925503470
+```
+
+**Purpose:** Displays all organization policies currently enforced on your organization.
+
+**Example Output:**
+```
+CONSTRAINT                                          LIST_POLICY  BOOLEAN_POLICY  ETAG
+iam.disableServiceAccountKeyCreation                -            SET             CJzy4soGEMC3iIMD-
+storage.uniformBucketLevelAccess                    -            SET             CJzy4soGEKDa8oID-
+compute.restrictProtocolForwardingCreationForTypes  SET          -               CJzy4soGEPC/gIMD-
+iam.automaticIamGrantsForDefaultServiceAccounts     -            SET             CJzy4soGENCm/oID-
+iam.disableServiceAccountKeyUpload                  -            SET             CJzy4soGEPiK9YID-
+```
+
+---
+
+### Step 6: Delete the Service Account Key Creation Constraint
+
+```bash
+gcloud org-policies delete iam.disableServiceAccountKeyCreation \
+    --organization=ORGANIZATION_ID
+```
+
+**Example:**
+```bash
+gcloud org-policies delete iam.disableServiceAccountKeyCreation \
+    --organization=1045925503470
+```
+
+**Purpose:** Removes the constraint that blocks service account key creation.
+
+**Important Notes:**
+- Use `iam.disableServiceAccountKeyCreation` (legacy constraint)
+- NOT `iam.managed.disableServiceAccountKeyCreation` (managed constraint)
+- The "NOT_FOUND" error when deleting the managed version is expected
+
+---
+
+### Step 7: Verify the Policy is Removed
+
+```bash
+gcloud org-policies list --organization=ORGANIZATION_ID
+```
+
+**Example:**
+```bash
+gcloud org-policies list --organization=1045925503470
+```
+
+**Purpose:** Confirms that the `iam.disableServiceAccountKeyCreation` constraint is no longer in the list.
+
+**Expected Result:** The constraint should not appear in the output.
+
+---
+
+### Step 8: Test Service Account Key Creation
+
+#### Create a Test Service Account
+
+```bash
+gcloud iam service-accounts create test-sa \
+    --display-name="Test Service Account" \
+    --project=PROJECT_ID
+```
+
+**Example:**
+```bash
+gcloud iam service-accounts create test-sa \
+    --display-name="Test Service Account" \
+    --project=project-040088dd-8c9a-464e-96f
+```
+
+#### Create a Key for the Service Account
+
+```bash
+gcloud iam service-accounts keys create ~/test-key.json \
+    --iam-account=SERVICE_ACCOUNT_EMAIL
+```
+
+**Example:**
+```bash
+gcloud iam service-accounts keys create ~/test-key.json \
+    --iam-account=test-sa@project-040088dd-8c9a-464e-96f.iam.gserviceaccount.com
+```
+
+**Expected Output:**
+```
+created key [KEY_ID] of type [json] as [~/test-key.json] for [test-sa@project-040088dd-8c9a-464e-96f.iam.gserviceaccount.com]
+```
+
+#### Clean Up Test Resources
+
+```bash
+# Delete the test key file
+rm ~/test-key.json
+
+# Delete the test service account
+gcloud iam service-accounts delete SERVICE_ACCOUNT_EMAIL
+```
+
+**Example:**
+```bash
+rm ~/test-key.json
+
+gcloud iam service-accounts delete test-sa@project-040088dd-8c9a-464e-96f.iam.gserviceaccount.com
+```
+
+---
+
+## Alternative: Viewing and Managing Policies via Console
+
+### Access Organization Policies in Console
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Click the project dropdown at the top
+3. Select **your Organization** (not a project)
+4. Navigate to: **IAM & Admin** → **Organization Policies**
+5. Search for: `iam.disableServiceAccountKeyCreation`
+6. Click **MANAGE POLICY**
+7. Select **Customize** → **Not enforced** or **Allow all**
+8. Click **SET POLICY**
+
+### Grant IAM Roles via Console
+
+1. Go to: **IAM & Admin** → **IAM**
+2. Select your **Organization** at the top
+3. Find your user email
+4. Click the **pencil icon** (Edit)
+5. Click **+ ADD ANOTHER ROLE**
+6. Search for: **Organization Policy Administrator**
+7. Select `roles/orgpolicy.policyAdmin`
+8. Click **SAVE**
+
+---
+
+## Google Cloud Security Baseline Constraints
+
+The following constraints are automatically enforced on new organizations (created after May 3, 2024):
+
+| Constraint | Purpose |
+|------------|---------|
+| `iam.disableServiceAccountKeyCreation` | Prevents creation of persistent service account keys |
+| `iam.disableServiceAccountKeyUpload` | Prevents upload of external public keys to service accounts |
+| `iam.automaticIamGrantsForDefaultServiceAccounts` | Prevents Editor role from being granted to default service accounts |
+| `iam.allowedPolicyMemberDomains` | Restricts resource sharing to specific domains |
+| `essentialcontacts.allowedContactDomains` | Limits Essential Contacts to managed domains |
+| `compute.restrictProtocolForwardingCreationForTypes` | Restricts protocol forwarding to internal IPs only |
+| `storage.uniformBucketLevelAccess` | Enforces uniform bucket-level access for Cloud Storage |
+
+---
+
+## Security Considerations
+
+### ⚠️ Important Security Warnings
+
+Service account keys are a **critical security vulnerability** if not managed properly. Before disabling this constraint, consider:
+
+1. **Why service account keys are risky:**
+   - Long-lived credentials that don't automatically rotate
+   - Can be leaked through code repositories, logs, or configuration files
+   - Difficult to track and audit usage
+   - Can be used from anywhere if compromised
+   - No built-in expiration mechanism
+
+2. **Secure Alternatives (Recommended):**
+
+   - **Workload Identity Federation:** Allows external workloads to impersonate service accounts using short-lived tokens
+     ```bash
+     # Example: Configure workload identity for GitHub Actions
+     gcloud iam workload-identity-pools create github-pool \
+         --location="global" \
+         --display-name="GitHub Actions Pool"
+     ```
+
+   - **Application Default Credentials (ADC):** For applications running on Google Cloud
+     ```bash
+     # For local development
+     gcloud auth application-default login
+     ```
+
+   - **Service Account Impersonation:** Users impersonate service accounts temporarily
+     ```bash
+     gcloud iam service-accounts add-iam-policy-binding SERVICE_ACCOUNT \
+         --member="user:USER_EMAIL" \
+         --role="roles/iam.serviceAccountTokenCreator"
+     ```
+
+3. **If you must use service account keys:**
+   - Rotate keys regularly (every 90 days recommended)
+   - Store keys securely (use Secret Manager, never commit to Git)
+   - Apply principle of least privilege to service account permissions
+   - Monitor key usage with Cloud Audit Logs
+   - Delete unused keys immediately
+
+---
+
+## Troubleshooting
+
+### Issue: "INVALID_ARGUMENT" Error
+
+**Error:**
+```
+ERROR: (gcloud.organizations.add-iam-policy-binding) INVALID_ARGUMENT: 
+Request contains an invalid argument.
+```
+
+**Cause:** Using placeholder text `YOUR_ORG_ID` instead of actual organization ID.
+
+**Solution:** Replace with actual numeric organization ID from `gcloud organizations list`.
+
+---
+
+### Issue: "Permission Denied" Error
+
+**Error:**
+```
+ERROR: (gcloud.org-policies.delete) PERMISSION_DENIED
+```
+
+**Cause:** User lacks Organization Policy Administrator role.
+
+**Solution:** Grant the role using Step 3 above.
+
+---
+
+### Issue: "API Not Enabled" Error
+
+**Error:**
+```
+API [orgpolicy.googleapis.com] not enabled on project
+```
+
+**Cause:** Organization Policy API is not enabled on your project.
+
+**Solution:** Enable the API using Step 4 above, then wait 1-2 minutes.
+
+---
+
+### Issue: "NOT_FOUND" Error for Managed Constraint
+
+**Error:**
+```
+ERROR: (gcloud.org-policies.delete) NOT_FOUND: Requested entity was not found.
+```
+
+**Cause:** Attempting to delete `iam.managed.disableServiceAccountKeyCreation` instead of the legacy constraint.
+
+**Solution:** Use `iam.disableServiceAccountKeyCreation` (without "managed").
+
+---
+
+### Issue: Cannot Find Organization
+
+**Symptom:** `gcloud organizations list` returns empty.
+
+**Possible Causes:**
+1. No organization exists for your account
+2. Using a personal Gmail account without Google Workspace
+3. Not authenticated with the correct account
+
+**Solution:**
+```bash
+# Check current authentication
+gcloud auth list
+
+# Get organization from project details
+gcloud projects describe PROJECT_ID
+```
+
+---
+
+## Quick Reference Commands
+
+### Essential Commands
+
+```bash
+# List organizations
+gcloud organizations list
+
+# List organization policies
+gcloud org-policies list --organization=ORG_ID
+
+# Describe specific policy
+gcloud org-policies describe CONSTRAINT_NAME --organization=ORG_ID
+
+# Delete policy
+gcloud org-policies delete CONSTRAINT_NAME --organization=ORG_ID
+
+# View IAM policy for organization
+gcloud organizations get-iam-policy ORG_ID
+
+# Add IAM role binding
+gcloud organizations add-iam-policy-binding ORG_ID \
+    --member="user:EMAIL" \
+    --role="ROLE"
+
+# Enable API
+gcloud services enable API_NAME --project=PROJECT_ID
+
+# List enabled APIs
+gcloud services list --enabled --project=PROJECT_ID
+```
+
+### Service Account Management
+
+```bash
+# Create service account
+gcloud iam service-accounts create SA_NAME \
+    --display-name="DISPLAY_NAME" \
+    --project=PROJECT_ID
+
+# Create service account key
+gcloud iam service-accounts keys create KEY_FILE.json \
+    --iam-account=SA_EMAIL
+
+# List service account keys
+gcloud iam service-accounts keys list --iam-account=SA_EMAIL
+
+# Delete service account key
+gcloud iam service-accounts keys delete KEY_ID --iam-account=SA_EMAIL
+
+# Delete service account
+gcloud iam service-accounts delete SA_EMAIL
+```
+
+---
+
+## Summary of Your Specific Case
+
+### Your Configuration
+- **Organization ID:** 1045925503470
+- **Project ID:** project-040088dd-8c9a-464e-96f
+- **Project Number:** 68634013284
+- **User Email:** mtousif03012026@gmail.com
+
+### Commands Used (In Order)
+
+```bash
+# 1. Found organization ID
+gcloud projects describe project-040088dd-8c9a-464e-96f
+
+# 2. Granted Organization Policy Administrator role
+gcloud organizations add-iam-policy-binding 1045925503470 \
+    --member="user:mtousif03012026@gmail.com" \
+    --role="roles/orgpolicy.policyAdmin"
+
+# 3. Enabled Organization Policy API
+gcloud services enable orgpolicy.googleapis.com --project=project-040088dd-8c9a-464e-96f
+
+# 4. Listed organization policies
+gcloud org-policies list --organization=1045925503470
+
+# 5. Deleted the constraint (to be executed)
+gcloud org-policies delete iam.disableServiceAccountKeyCreation \
+    --organization=1045925503470
+```
+
+---
+
+## Additional Resources
+
+### Official Documentation
+- [Organization Policy Service Overview](https://cloud.google.com/resource-manager/docs/organization-policy/overview)
+- [Google Cloud Security Baseline](https://cloud.google.com/resource-manager/docs/organization-policy/restricting-resources#baseline)
+- [Service Account Best Practices](https://cloud.google.com/iam/docs/best-practices-for-managing-service-account-keys)
+- [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation)
+
+### Support
+- Google Cloud Console: https://console.cloud.google.com
+- Support Cases: https://cloud.google.com/support
+- Community Forum: https://www.googlecloudcommunity.com/
+
+---
+
+## Revision History
+
+| Date | Change | Author |
+|------|--------|--------|
+| 2026-01-03 | Initial document creation | Created during troubleshooting session |
+
+---
+
+## Notes
+
+- This guide assumes you have owner or administrator access to your Google Cloud organization
+- Always follow security best practices when managing service account keys
+- Consider using Workload Identity Federation or Application Default Credentials instead of service account keys whenever possible
+- Keep this document updated if Google Cloud changes their organization policy structure or API
+
+---
+
+**Last Updated:** January 3, 2026
