@@ -33,10 +33,10 @@ jobs:
         run: |
           gsutil cp variables/dev/variables.json gs://us-central1-airflow-gds-4d94d43e-bucket/data/dev/variables.json
 
-      # Import Variables into Airflow-DEV
+      # Import Variables into Airflow-DEV (Fixed environment name)
       - name: Import Variables into Airflow-DEV
         run: |
-          gcloud composer environments run airflow-dev \
+          gcloud composer environments run airflow-gds \
             --location us-central1 \
             variables import -- /home/airflow/gcs/data/dev/variables.json
 
@@ -49,7 +49,7 @@ jobs:
       - name: Upload Airflow DAG to DEV
         run: |
           gcloud composer environments storage dags import \
-            --environment  airflow-gds \
+            --environment airflow-gds \
             --location us-central1 \
             --source airflow_job/airflow_job.py
 
@@ -70,7 +70,7 @@ jobs:
 
       # Setup Google Cloud SDK
       - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
+      - uses: google-github-actions/setup-gcloud@v1
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
 
